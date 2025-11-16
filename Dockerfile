@@ -2,9 +2,9 @@ FROM python:3.12.3-slim
 
 WORKDIR /app
 
-# ENV MONGODB_URI=mongodb://airlines:airlines@34.154.65.11:27017/admin
-# ENV BUCKET_NAME=airfrance-bucket
-# ENV DATABASE_NAME=airlines_test
+ENV MONGODB_URI=mongodb://airlines:airlines@34.154.65.11:27017/admin
+ENV BUCKET_NAME=airfrance-bucket
+ENV DATABASE_NAME=airlines
 
 RUN apt-get update && apt-get install -y git && apt-get clean
 COPY requirements.txt .
