@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from datetime import datetime
 import subprocess
-from SERIALIZER.utils import mongo_to_json
+from mongo_db_interaction.SERIALIZER.utils import mongo_to_json
 import gzip
 import io
 from mongo_db_interaction.USE_CASES.get_by_id_historic_flights_uc import get_by_id_historic_flight
@@ -159,7 +159,6 @@ def get_full_dump():
         raise HTTPException(status_code=500, detail="mongodump not installed.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur : {str(e)}")
-
 
     
 

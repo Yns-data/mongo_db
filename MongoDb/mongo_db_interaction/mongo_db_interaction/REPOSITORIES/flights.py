@@ -1,4 +1,7 @@
 from mongo_db_interaction.DB_CONTEXT.db_context import mongo_db_connect
+from fastapi import HTTPException
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 collection = "historic_flights"
 
@@ -28,8 +31,20 @@ def create_index():
 def count_flight(collection_name):
     return mongo_db_connect[collection_name].count_documents({})
 
+def add_date_insertion(collection_name):
+    date_now = datetime.now(ZoneInfo("Europe/Paris")).strftime("%Y%m%d-%H-%M-%S")
 
-def get_all(nb_flight_limit, collection_name):
+    creation_date = mongo_db_connect[collection_name].update_many(
+    {"date_insertion": {"$exists": False}}, 
+    {"$set": {"date_insertion": {"date": date_now}}}
+)
+    
+    print(f"Nb docs on {collection_name} updated to add date: {creation_date.modified_count}")
+
+
+
+
+def get_all(nb_flight_limit, collection_name, date=None):
     
     pipeline = [
         {
@@ -69,16 +84,39 @@ def get_all(nb_flight_limit, collection_name):
                 "hasReturnFlight": False
             }
         },
-        {
-            "$unwind": "$flightLegs"
-        },
+   
         {
             "$match": {
-                "flightLegs.statusName": {
-                    "$nin": ["New", "Cancelled"]
+                "flightLegs": {
+                    "$not": {
+                        "$elemMatch": {
+                            "statusName": {"$in": ["New", "Cancelled"]}
+                        }
+                    }
                 }
             }
-        },
+        }
+    ]
+    if date is not None:
+        pipeline.append({
+            "$match": {
+                "date_insertion.date": {"$gt": date}
+            }
+        })
+    
+    if collection_name == "historic_flights":
+        pipeline.append({
+        "$addFields": {
+            "debug_status": "$flightStatusPublic",
+            "debug_length": {"$strLenCP": "$flightStatusPublic"}
+        }
+    })
+        pipeline.append({
+            "$match": {
+                "flightStatusPublic": {"$nin": ["SCHEDULED", "Scheduled"]}
+            }
+        })
+    pipeline.extend([{"$unwind": "$flightLegs"},
         {
             "$project": {
                 "id": "$id",
@@ -121,14 +159,35 @@ def get_all(nb_flight_limit, collection_name):
                 "flightLegs_status": "$flightLegs.status",
                 "flightLegs_publishedStatus": "$flightLegs.publishedStatus",
                 "flightLegs_legStatusPublic": "$flightLegs.legStatusPublic",
-                "flightLegs_statusName": "$flightLegs.statusName",
+                "flightLegs_statusName": { "$ifNull": ["$flightLegs.statusName", ""] },
                 "flightNumber": "$flightNumber",
                 "flightStatusPublic": "$flightStatusPublic"
             }
         }
-    ]
+    ])
 
     if nb_flight_limit is not None:
         pipeline.append({"$limit": nb_flight_limit})
-
-    return list(mongo_db_connect[collection_name].aggregate(pipeline))
+    try:
+        result = list(mongo_db_connect[collection_name].aggregate(pipeline))
+        
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail="Not found"
+                
+            )
+        
+        return result
+        
+    except HTTPException:
+        raise
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Erreur base de données",
+                "message": str(e)
+            }
+        )
