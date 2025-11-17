@@ -12,68 +12,87 @@ from google.cloud import storage
 print("Loading environment variables...")
 load_dotenv()
 
-try:
-    # Retrieve MongoDB CSV data from FastAPI endpoint
-    print(f"Fetching CSV data from FastAPI at {os.getenv('MONGODB_FASTAPI_GET_CSV_URL')} ...")
-    response = requests.get(os.getenv("MONGODB_FASTAPI_GET_CSV_URL"))
-    gz_buffer = BytesIO(response.content)
+def get_dataframe_from_mongodb(date:str):
+    try:
+        # Retrieve MongoDB CSV data from FastAPI endpoint
+        print(f"Fetching CSV data from FastAPI at {os.getenv('MONGODB_FASTAPI_GET_CSV_URL')} ...")
+        response = requests.get(os.getenv("MONGODB_FASTAPI_GET_CSV_URL")+date)
+        gz_buffer = BytesIO(response.content)
 
-    print("Reading CSV data into DataFrame...")
-    with gzip.open(gz_buffer, 'rt') as f:
-        df = pd.read_csv(f, low_memory=False)
-    print(f"DataFrame loaded with {len(df)} rows and {len(df.columns)} columns.")
-except Exception as e:
-    print(e)
-    df = pd.read_csv("/Workflow_Mongodb_Postgrsql/")
+        print("Reading CSV data into DataFrame...")
+        with gzip.open(gz_buffer, 'rt') as f:
+            df = pd.read_csv(f, low_memory=False)
+        print(f"DataFrame loaded with {len(df)} rows and {len(df.columns)} columns.")
+        return df
+    except Exception as e:
+        print(e)
+        df = pd.read_csv("/Workflow_Mongodb_Postgrsql/")
+
 
 # PostgreSQL configuration
-table_name = os.getenv("TABLE_NAME")
-postgre_db_config = {
-    "dbname": os.getenv("POSTGRES_DB_NAME"),
-    "user": os.getenv("POSTGRES_USER"),
-    "password": os.getenv("POSTGRES_PASSWORD"),
-    "host": os.getenv("POSTGRES_HOST"),
-    "port": os.getenv("POSTGRES_PORT")
-}
-print(f"PostgreSQL config loaded. Target table: '{table_name}'")
+def load_postgres_config():
+    table_name = os.getenv("TABLE_NAME")
+    postgre_db_config = {
+        "dbname": os.getenv("POSTGRES_DB_NAME"),
+        "user": os.getenv("POSTGRES_USER"),
+        "password": os.getenv("POSTGRES_PASSWORD"),
+        "host": os.getenv("POSTGRES_HOST"),
+        "port": int(os.getenv("POSTGRES_PORT"))
+    }
+    print(f"PostgreSQL config loaded. Target table: '{table_name}'")
+    return table_name, postgre_db_config
+# PostgreSQL insertion
+def copy_dataframe_to_postgres(df, table_name, postgre_db_config):
+    """
+    Insert a pandas DataFrame into a PostgreSQL table using COPY and context managers.
+    """
 
-# Google Cloud Storage configuration
-BUCKET_NAME = os.getenv("BUCKET_NAME")
-SOURCE_BLOB_NAME = os.getenv("SOURCE_BLOB_NAME")
-print(f"Fetching column mapping JSON from GCS bucket '{BUCKET_NAME}', blob '{SOURCE_BLOB_NAME}' ...")
+    # Préparation tampon CSV pour COPY
+    print("Preparing data for COPY...")
+    buffer = StringIO()
+    df.to_csv(buffer, index=False, header=False)  # COPY ne veut pas d'en-têtes
+    buffer.seek(0)
 
-# Load JSON column mapping from GCS
-storage_client = storage.Client()
-bucket = storage_client.bucket(BUCKET_NAME)
-blob = bucket.blob(SOURCE_BLOB_NAME)
+    columns = ', '.join(df.columns)
+    sql = f"COPY {table_name} ({columns}) FROM STDIN WITH CSV"
 
-json_data = blob.download_as_bytes()
-column_mapping = json.load(BytesIO(json_data))
-print(f"Column mapping loaded with {len(column_mapping)} entries.")
+    # Connexion avec context manager
+    print("Connecting to PostgreSQL...")
+    with psycopg2.connect(**postgre_db_config) as conn:
+        with conn.cursor() as cur:
+            print("Connection established.")
+            print(f"Inserting data into PostgreSQL table '{table_name}' ...")
 
-# Rename DataFrame columns according to the mapping
-print("Renaming DataFrame columns...")
-df.rename(columns=column_mapping, inplace=True)
-print("Columns renamed successfully.")
+            cur.copy_expert(sql=sql, file=buffer)
 
-# Insert DataFrame into PostgreSQL using COPY (high-performance)
-print("Connecting to PostgreSQL...")
-conn = psycopg2.connect(**postgre_db_config)
-cur = conn.cursor()
-print("Connection established.")
+        # Le commit et le close sont gérés automatiquement par psycopg2
 
-print("Preparing data for COPY...")
-buffer = StringIO()
-df.to_csv(buffer, index=False, header=False)  # no header for COPY
-buffer.seek(0)
+    print("Data inserted successfully.")
 
-columns = ', '.join(df.columns)
-sql = f"COPY {table_name} ({columns}) FROM STDIN WITH CSV"
+if __name__=="__main__":
+    # loading inputs 
+    # df = get_dataframe_from_mongodb(date="20251114-15-30-45")
+    df = pd.read_csv("Workflow_Mongodb_Postgrsql/afklm_removed_sch_flight_from_mongo_filtered_20251117-12-15-18.csv.gz")
+    
+    table_name, postgre_db_config = load_postgres_config()
+    # Google Cloud Storage configuration
+    BUCKET_NAME = os.getenv("BUCKET_NAME")
+    SOURCE_BLOB_NAME = os.getenv("MAPPING_FILE_BLOB_NAME")
+    print(f"Fetching column mapping JSON from GCS bucket '{BUCKET_NAME}', blob '{SOURCE_BLOB_NAME}' ...")
 
-print(f"Inserting data into PostgreSQL table '{table_name}' ...")
-cur.copy_expert(sql=sql, file=buffer)
+    # Load JSON column mapping from GCS
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(BUCKET_NAME)
+    blob = bucket.blob(SOURCE_BLOB_NAME)
 
-conn.commit()
-cur.close()
-conn.close()
-print(f"Insertion completed successfully into table '{table_name}'!")
+    json_data = blob.download_as_bytes()
+    column_mapping = json.load(BytesIO(json_data))
+    print(f"Column mapping loaded with {len(column_mapping)} entries.")
+
+    # Rename DataFrame columns according to the mapping
+    print("Renaming DataFrame columns...")
+    df.rename(columns=column_mapping, inplace=True)
+    print("Columns renamed successfully.")
+
+    # insertion of data
+    copy_dataframe_to_postgres(df, table_name, postgre_db_config)
