@@ -26,4 +26,4 @@ spec:
                   name: pgadmin-secret
                   key: PGADMIN_DEFAULT_PASSWORD
             - name: PGADMIN_CONFIG_SERVER_MODE
-              value: "False"
+              value: "True"
