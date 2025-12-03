@@ -1,4 +1,4 @@
-from USE_CASES.get_csv_flights_uc import get_csv_flights
+from dst_de_airlines_api.USE_CASES.get_csv_flights_uc import get_csv_flights
 import sys
 
 if len(sys.argv) < 2:

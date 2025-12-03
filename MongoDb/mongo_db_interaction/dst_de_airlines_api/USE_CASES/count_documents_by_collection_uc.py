@@ -1,6 +1,6 @@
-from DAO.flights import count_flight
-from DAO.collections import get_all_collection_name
-from DAO.compressed_file_name import count_compressed_file_name
+from dst_de_airlines_api.DAO.flights import count_flight
+from dst_de_airlines_api.DAO.collections import get_all_collection_name
+from dst_de_airlines_api.DAO.compressed_file_name import count_compressed_file_name
 
 def count_documents_by_collection():
 

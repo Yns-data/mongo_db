@@ -1,4 +1,4 @@
-from DAO.file_names import insert_one, get_by_name
+from dst_de_airlines_api.DAO.file_names import insert_one, get_by_name
 
 def insert_file_name(file_name):
     if is_file_name_exist(file_name) == False:

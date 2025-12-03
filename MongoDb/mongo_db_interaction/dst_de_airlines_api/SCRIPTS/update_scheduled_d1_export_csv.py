@@ -1,5 +1,5 @@
-from USE_CASES.get_csv_flights_uc import get_csv_flights
-from SERVICES.formater_service import format_json_flight_to_df
+from dst_de_airlines_api.USE_CASES.get_csv_flights_uc import get_csv_flights
+from dst_de_airlines_api.SERVICES.formater_service import format_json_flight_to_df
 import sys
 
 if len(sys.argv) < 2:

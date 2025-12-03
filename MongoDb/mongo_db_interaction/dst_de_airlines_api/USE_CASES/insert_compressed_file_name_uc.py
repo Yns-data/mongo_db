@@ -1,5 +1,5 @@
 from queue import Full
-from DAO.compressed_file_name import insert_many, insert_one, get_by_compressed_file_name
+from dst_de_airlines_api.DAO.compressed_file_name import insert_many, insert_one, get_by_compressed_file_name
 
 def insert_many_compressed_file_names(compressed_file_name):
    

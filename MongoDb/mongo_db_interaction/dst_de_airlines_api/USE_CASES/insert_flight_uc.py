@@ -1,4 +1,4 @@
-from DAO.flights import insert_one, get_by_id
+from dst_de_airlines_api.DAO.flights import insert_one, get_by_id
 
 def insert_flight(flight):
     id = flight['id']

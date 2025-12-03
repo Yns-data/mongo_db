@@ -1,7 +1,7 @@
 
 import os
 from dotenv import load_dotenv
-from CONNECTION.check_gcp_connection import check_gcp_connection
+from dst_de_airlines_api.CONNECTION.check_gcp_connection import check_gcp_connection
 
 
 def is_gz_file(file_name):

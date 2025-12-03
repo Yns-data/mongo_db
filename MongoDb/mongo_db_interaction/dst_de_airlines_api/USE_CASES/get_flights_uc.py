@@ -1,4 +1,4 @@
-from DAO.flights import get_flights_by_id
+from dst_de_airlines_api.DAO.flights import get_flights_by_id
 
 
 

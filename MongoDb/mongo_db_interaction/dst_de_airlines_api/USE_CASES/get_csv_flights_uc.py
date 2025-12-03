@@ -1,7 +1,7 @@
 from datetime import datetime
-from USE_CASES.get_flights_uc import get_flights
-from USE_CASES.get_by_id_uc import get_flight_by_id
-from SERVICES.formater_service import format_json_flight_to_df
+from dst_de_airlines_api.USE_CASES.get_flights_uc import get_flights
+from dst_de_airlines_api.USE_CASES.get_by_id_uc import get_flight_by_id
+from dst_de_airlines_api.SERVICES.formater_service import format_json_flight_to_df
 
 
 

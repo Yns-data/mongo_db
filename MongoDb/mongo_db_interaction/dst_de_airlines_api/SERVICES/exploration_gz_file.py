@@ -7,7 +7,7 @@ import tarfile
 import gzip
 import bz2
 import lzma
-from CONNECTION.check_gcp_connection import check_gcp_connection
+from dst_de_airlines_api.CONNECTION.check_gcp_connection import check_gcp_connection
 
 
 def get_json_in_gz_file_by_its_name(gz_file_name, in_cloud = True):
