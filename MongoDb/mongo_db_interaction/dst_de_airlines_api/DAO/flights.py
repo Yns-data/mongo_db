@@ -1,0 +1,240 @@
+from CONNECTION.db_context import mongo_db_connect
+from CONNECTION.check_database_connection import check_db_connection
+from fastapi import HTTPException
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+collection = "historic_flights"
+
+def insert_one(flight):
+    check_db_connection() 
+    mongo_db_connect[collection].insert_one(flight)
+
+
+
+def get_by_id(colleciton_name, id):
+    check_db_connection() 
+    try:
+        flight = mongo_db_connect[colleciton_name].find_one({"id": id})
+        return flight
+    except (TypeError, KeyError):
+        return None
+    except Exception as e: 
+        print(f"critical error : {e}")
+        raise 
+    
+
+  
+
+def create_index():
+    check_db_connection() 
+    mongo_db_connect[collection].create_index([("id", 1)], unique=True)
+
+
+def count_flight(collection_name):
+    check_db_connection() 
+    try:
+        return mongo_db_connect[collection_name].count_documents({})
+    except (TypeError, KeyError):
+        return None
+    except HTTPException: 
+        raise
+    except Exception as e:
+        print(f"critical error : {e}")
+        raise
+
+def add_date_insertion(collection_name):
+    check_db_connection() 
+    date_now = datetime.now(ZoneInfo("Europe/Paris")).strftime("%Y%m%d-%H-%M-%S")
+
+    creation_date = mongo_db_connect[collection_name].update_many(
+    {"date_insertion": {"$exists": False}}, 
+    {"$set": {"date_insertion": {"date": date_now}}}
+)
+    
+    print(f"Nb docs on {collection_name} updated to add date: {creation_date.modified_count}")
+
+
+
+
+def get_flights_by_id( collection_name,  date=None, id=None, nb_flight=None):
+    check_db_connection() 
+
+
+
+    GREATEST_EUROPEAN_AIRPORT = [
+        "CDG", "AMS", "ORY", "FCO", "LHR", "CPH", "MAD", "ARN", "OSL", "LIN",
+        "NCE", "BCN", "LYS", "BGO", "LIS", "DUB", "HEL", "TLS", "OTP", "FRA",
+        "MRS", "ATH", "PMI", "MUC", "TRD", "MAN", "BER", "AGP", "OPO"
+    ]
+    
+    pipeline = [
+        {
+            "$addFields": {
+                "departureAirports": {
+                    "$map": {
+                        "input": "$flightLegs",
+                        "as": "leg",
+                        "in": "$$leg.departureInformation.airport.code"
+                    }
+                },
+                "arrivalAirports": {
+                    "$map": {
+                        "input": "$flightLegs",
+                        "as": "leg",
+                        "in": "$$leg.arrivalInformation.airport.code"
+                    }
+                }
+            }
+        },
+        {
+            "$addFields": {
+                "hasReturnFlight": {
+                    "$gt": [
+                        {
+                            "$size": {
+                                "$setIntersection": ["$departureAirports", "$arrivalAirports"]
+                            }
+                        },
+                        0
+                    ]
+                }
+            }
+        },
+        {
+            "$match": {
+                "hasReturnFlight": False
+            }
+        },
+        {
+            "$match": {
+                "flightLegs": {
+                    "$not": {
+                        "$elemMatch": {
+                            "statusName": {"$in": ["New", "Cancelled"]}
+                        }
+                    }
+                }
+            }
+        }
+    ]
+    
+    if date is not None:
+        pipeline.append({
+            "$match": {
+                "date_insertion.date": {"$gt": date}
+            }
+        })
+    
+    if collection_name == "historic_flights":
+        pipeline.append({
+            "$addFields": {
+                "debug_status": "$flightStatusPublic",
+                "debug_length": {"$strLenCP": "$flightStatusPublic"}
+            }
+        })
+        pipeline.append({
+            "$match": {
+                "flightStatusPublic": {"$nin": ["SCHEDULED", "Scheduled"]}
+            }
+        })
+    
+
+    pipeline.append({"$unwind": "$flightLegs"})
+    
+
+    pipeline.append({
+        "$match": {
+            "$or": [
+                {"flightLegs.departureInformation.airport.code": {"$in": GREATEST_EUROPEAN_AIRPORT}},
+                {"flightLegs.arrivalInformation.airport.code": {"$in": GREATEST_EUROPEAN_AIRPORT}}
+            ]
+        }
+    })
+    
+    pipeline.append({
+        "$project": {
+            "id": "$id",
+            "airline_code": {"$ifNull": ["$airline.code", ""]},
+            "airline_name": {"$ifNull": ["$airline.name", ""]},
+            "flightLegs_aircraft_ownerAirlineCode": {"$ifNull": ["$flightLegs.aircraft.ownerAirlineCode", ""]},
+            "flightLegs_aircraft_typeCode": {"$ifNull": ["$flightLegs.aircraft.typeCode", ""]},
+            "flightLegs_arrivalInformation_airport_city_country_areaCode": {"$ifNull":["$flightLegs.arrivalInformation.airport.city.country.areaCode", ""]},
+            "flightLegs_arrivalInformation_airport_city_country_code": {"$ifNull":["$flightLegs.arrivalInformation.airport.city.country.code", ""]} ,
+            "flightLegs_arrivalInformation_airport_city_country_name": {"$ifNull":["$flightLegs.arrivalInformation.airport.city.country.name", ""]} , 
+            "flightLegs_arrivalInformation_airport_code": {"$ifNull":["$flightLegs.arrivalInformation.airport.code", ""]} ,
+            "flightLegs_arrivalInformation_airport_location_latitude": {"$ifNull":["$flightLegs.arrivalInformation.airport.location.latitude", ""]} ,
+            "flightLegs_arrivalInformation_airport_location_longitude": {"$ifNull":["$flightLegs.arrivalInformation.airport.location.longitude", ""]} ,
+            "flightLegs_arrivalInformation_times_scheduled": {"$ifNull":["$flightLegs.arrivalInformation.times.scheduled", ""]} ,
+            "flightLegs_departureInformation_airport_city_country_areaCode": {"$ifNull":["$flightLegs.departureInformation.airport.city.country.areaCode", ""]} ,
+            "flightLegs_departureInformation_airport_city_country_code": {"$ifNull":["$flightLegs.departureInformation.airport.city.country.code", ""]} ,
+            "flightLegs_departureInformation_airport_city_country_name": {"$ifNull":["$flightLegs.departureInformation.airport.city.country.name", ""]} ,
+            "flightLegs_departureInformation_airport_code": {"$ifNull":["$flightLegs.departureInformation.airport.code", ""]}  ,
+            "flightLegs_departureInformation_airport_location_latitude": {"$ifNull":["$flightLegs.departureInformation.airport.location.latitude", ""]} ,
+            "flightLegs_departureInformation_airport_location_longitude": {"$ifNull":["$flightLegs.departureInformation.airport.location.longitude", ""]} , 
+            "flightLegs_departureInformation_airport_places_departurePositionTerminal_gateNumber": {"$ifNull":["$flightLegs.departureInformation.airport.places.gateNumber", ""]},
+            "flightLegs_departureInformation_times_scheduled": {"$ifNull":["$flightLegs.departureInformation.times.scheduled", ""]},
+            "flightLegs_irregularity_delayDuration": {"$ifNull":["$flightLegs.irregularity.delayDuration", ""]}, 
+            "flightLegs_irregularity_delayInformation_delayReasonPublicLong": {"$ifNull":["$flightLegs.irregularity.delayInformation.delayReasonPublicLong", ""]}, 
+            "flightLegs_irregularity_delayInformation_delayCode": {"$ifNull":["$flightLegs.irregularity.delayInformation.delayCode", ""]}, 
+            "flightLegs_irregularity_delayInformation_delayReasonPublicShort": {"$ifNull":["$flightLegs.irregularity.delayInformation.delayReasonPublicShort", ""]}, 
+            "flightLegs_irregularity_delayReason": {"$ifNull":["$flightLegs.irregularity.delayReason", ""]},
+            "flightLegs_scheduledFlightDuration": {"$ifNull":["$flightLegs.scheduledFlightDuration", ""]} ,
+            "flightLegs_serviceType": {"$ifNull":["$flightLegs.serviceType", ""]} ,
+            "flightLegs_serviceTypeName": {"$ifNull":["$flightLegs.serviceTypeName", ""]} ,
+            "flightLegs_status": {"$ifNull":["$flightLegs.status", ""]} ,
+            "flightLegs_publishedStatus": {"$ifNull":["$flightLegs.publishedStatus", ""]} ,
+            "flightLegs_legStatusPublic":  {"$ifNull":["$flightLegs.legStatusPublic", ""]} , 
+            "flightLegs_statusName": {"$ifNull": ["$flightLegs.statusName", ""]},
+            "flightNumber": {"$ifNull": ["$flightNumber",""]},
+            "flightStatusPublic": {"$ifNull": ["$flightStatusPublic",""]},
+            "flightLegs_arrivalInformation_times_estimated_value": {"$ifNull": ["$flightLegs.arrivalInformation.times.estimated.value",""]}, 
+            "flightLegs_arrivalInformation_times_latestPublished": {"$ifNull": ["$flightLegs.arrivalInformation.times.latestPublished",""]},
+            "flightLegs_departureInformation_times_actual": {"$ifNull": ["$flightLegs.departureInformation.times.actual",""]},  
+            "flightLegs_departureInformation_times_actualTakeOffTime": {"$ifNull": ["$flightLegs.departureInformation.times.actualTakeOffTime",""]}, 
+            "flightLegs_departureInformation_times_latestPublished": {"$ifNull": ["$flightLegs.departureInformation.times.latestPublished",""]},  
+            "flightLegs_arrivalInformation_airport_places_arrivalPositionTerminal": {"$ifNull":["$flightLegs.arrivalInformation.airport.places.arrivalPositionTerminal", ""]} ,
+            "flightLegs_arrivalInformation_times_actual": {"$ifNull": ["$flightLegs.arrivalInformation.times.actual",""]}, 
+            "flightLegs_arrivalInformation_times_actualTouchDownTime": {"$ifNull": ["$flightLegs.arrivalInformation.times.actualTouchDownTime",""]},  
+            "flightLegs_departureInformation_airport_places_departurePositionTerminal_boardingTerminal": {"$ifNull":["$flightLegs.departureInformation.airport.places.boardingTerminal", ""]}
+            }
+    })
+
+    pipeline.append({
+        "$sort": {"id": 1}  
+    })
+
+
+    if id is not None:
+        pipeline.append({
+            "$match": {
+                "id": {"$gte": id}  
+            }
+        })
+
+
+    if nb_flight is not None:
+        pipeline.append({"$limit": nb_flight})
+        
+    try:
+        flights = list(mongo_db_connect[collection_name].aggregate(pipeline))
+        
+        if not flights:
+            raise HTTPException(
+                status_code=404,
+                detail="Not found"
+            )
+        
+        return flights
+        
+    except HTTPException:
+        raise
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Erreur base de données",
+                "message": str(e)
+            }
+        )

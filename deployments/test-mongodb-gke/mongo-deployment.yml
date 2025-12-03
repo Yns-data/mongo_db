@@ -29,10 +29,21 @@ spec:
                 secretKeyRef:
                   name: mongo-secret
                   key: mongo-root-password
+          resources:                  # <-- Ajouté ici
+            requests:
+              memory: "16Gi"
+              cpu: "4"
+            limits:
+              memory: "32Gi"
+              cpu: "8"
           volumeMounts:
             - name: mongo-storage
               mountPath: /data/db
-      volumes:
-        - name: mongo-storage
-          persistentVolumeClaim:
-            claimName: mongo-pvc
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

@@ -30,7 +30,7 @@ if __name__=="__main__":
 
     # df = get_dataframe_from_mongodb()
     import pandas as pd 
-    df = pd.read_csv("Workflow_Mongodb_Postgrsql/afklm_removed_sch_flight_from_mongo_filtered_20251117-12-15-18.csv.gz")
+    df = pd.read_csv("Workflow_Mongodb_Postgrsql_Package/afklm_flight_from_mongo_filtered_20251113-21-36-51.csv.gz")
 
     # Rename DataFrame columns according to the mapping
     logger.info("Renaming DataFrame columns...")

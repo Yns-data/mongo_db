@@ -1,10 +1,10 @@
 from pymongo import MongoClient, errors
 
-MONGO_HOST = "34.154.65.11"
+MONGO_HOST = "34.32.126.15"
 MONGO_PORT = 27017
 MONGO_USER = "airlines"
 MONGO_PASS = "airlines"
-MONGO_DB   = "airlines_test"
+MONGO_DB   = "airlines"
 
 try:
     client = MongoClient(
