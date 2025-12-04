@@ -11,11 +11,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def get_dataframe_from_mongodb(date: str = None):
+def get_dataframe_from_mongodb( collection: str,limit: int = 10):
+    collections = ["historic","scheduled","update_scheduled_d1"]
+    if collection not in collections :
+        raise ValueError(f"collection parameter must be one of these parameters : {collections}")
+    api_endpoint = os.getenv("MONGODB_URI_GET_CSV")+f"/{collection}/export?limit={limit}"
     try:
         # Retrieve MongoDB CSV data from FastAPI endpoint
-        logger.info(f"Fetching CSV data from FastAPI at {os.getenv('MONGODB_FASTAPI_GET_CSV_URL')} ...")
-        response = requests.get(os.getenv("MONGODB_FASTAPI_GET_CSV_URL")+date)
+        logger.info(f"Fetching CSV data from FastAPI at {api_endpoint} ...")
+        response = requests.get(api_endpoint)
         gz_buffer = BytesIO(response.content)
         logger.info("Reading CSV data into DataFrame...")
         with gzip.open(gz_buffer, 'rt') as f:
@@ -32,6 +36,7 @@ def get_dataframe_from_mongodb(date: str = None):
 # PostgreSQL configuration
 def load_postgres_config():
     table_name = os.getenv("TABLE_NAME")
+    collection_name = os.getenv("COLLECTION")
     postgre_db_config = {
         "dbname": os.getenv("POSTGRES_DB_NAME"),
         "user": os.getenv("POSTGRES_USER"),
@@ -40,7 +45,7 @@ def load_postgres_config():
         "port": int(os.getenv("POSTGRES_PORT"))
     }
     logger.info(f"PostgreSQL config loaded. Target table: '{table_name}'")
-    return table_name, postgre_db_config
+    return collection_name,table_name, postgre_db_config
 # PostgreSQL insertion
 def copy_dataframe_to_postgres(df:pd.DataFrame, table_name:str, postgre_db_config:dict):
     """
@@ -86,6 +91,7 @@ def run_sql_from_string(sql_string:str, postgre_db_config:dict):
                         try:
                             logger.info(f"Executing: {stmt[:80]}...")
                             cur.execute(stmt)
+                            logger.info("SQL execution successful.")
                         except Exception as e:
                             logger.error(f"SQL execution failed: {e}")
 
