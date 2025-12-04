@@ -1,4 +1,5 @@
-from workflow_mongodb_postgresql_functions.utilities import get_dataframe_from_mongodb, load_postgres_config, copy_dataframe_to_postgres, run_sql_from_string
+from workflow_mongodb_postgresql_functions.utilities import get_dataframe_from_mongodb, load_postgres_config, copy_dataframe_to_postgres, run_sql_from_string,create_temporary_tables
+
 from workflow_mongodb_postgresql_functions.gcp_logger import logger
 import json
 from io import BytesIO
@@ -33,6 +34,11 @@ if __name__=="__main__":
     logger.info("Renaming DataFrame columns...")
     df.rename(columns=column_mapping, inplace=True)
     logger.info("Columns renamed successfully.")
+    # creating temporary table
+    try:
+        create_temporary_tables(postgre_db_config, table_name)
+    except Exception as e:
+        raise Exception(f"An Error has occured while creating {table_name}: {e}")
     # insertion of data
     try:
         copy_dataframe_to_postgres(df, table_name, postgre_db_config)

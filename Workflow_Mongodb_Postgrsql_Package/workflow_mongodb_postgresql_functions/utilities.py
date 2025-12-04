@@ -6,6 +6,10 @@ import requests
 import gzip
 import os
 from dotenv import load_dotenv
+from .sql_requests import (CREATING_MONGODB_FUTURE, 
+                           CREATING_MONGODB_FUTURE_D1,
+                           CREATING_MONGODB_PAST)
+
 
 # Load environment variables
 load_dotenv()
@@ -97,3 +101,23 @@ def run_sql_from_string(sql_string:str, postgre_db_config:dict):
 
     finally:
         logger.info("SQL execution finished.")
+
+def create_temporary_tables(postgre_db_config:dict, table_name:str):
+    if table_name == "mongodb_past":
+        try:
+            run_sql_from_string(CREATING_MONGODB_PAST, postgre_db_config)
+            logger.info("mongodb_past table created successfully")
+        except Exception as e:
+            raise Exception(f"An Error has occured while creating mongodb_past: {e}")
+    if table_name == "mongodb_future":
+        try:
+            run_sql_from_string(CREATING_MONGODB_FUTURE, postgre_db_config)
+            logger.info("mongodb_future table created successfully")
+        except Exception as e:
+            raise Exception(f"An Error has occured while creating mongodb_future: {e}")
+    if table_name == "mongodb_future_d1":
+        try:
+            run_sql_from_string(CREATING_MONGODB_FUTURE_D1, postgre_db_config)
+            logger.info("mongodb_future_d1 table created successfully")
+        except Exception as e:
+            raise Exception(f"An Error has occured while creating mongodb_future_d1: {e}")

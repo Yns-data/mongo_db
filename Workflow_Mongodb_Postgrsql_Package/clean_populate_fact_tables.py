@@ -11,7 +11,7 @@ load_dotenv()
 
 if __name__=="__main__":
     # loading inputs
-    collection_name,table_name, postgre_db_config = load_postgres_config()
+    postgre_db_config = load_postgres_config()[-1]
     try:
         run_sql_from_string(CLEANING_TEMPORARY_TABLES, postgre_db_config)
         logger.info("cleaning temporary tables done successfully")
