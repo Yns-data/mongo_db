@@ -1,4 +1,8 @@
-from workflow_mongodb_postgresql_functions.utilities import get_dataframe_from_mongodb, load_postgres_config, copy_dataframe_to_postgres, run_sql_from_string,create_temporary_tables
+from workflow_mongodb_postgresql_functions.utilities import (get_dataframe_from_mongodb,
+                                                            load_postgres_config, 
+                                                            copy_dataframe_to_postgres, 
+                                                            run_sql_from_string,
+                                                            create_temporary_tables)
 
 from workflow_mongodb_postgresql_functions.gcp_logger import logger
 import json

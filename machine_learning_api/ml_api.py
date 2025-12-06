@@ -4,24 +4,9 @@ import re
 import datetime
 import pandas as pd
 from typing import Optional
-# import datetime
-# from sklearn.compose import ColumnTransformer
-# from sklearn.pipeline import Pipeline
-# from sklearn.preprocessing import StandardScaler, OneHotEncoder, MinMaxScaler
-# from sklearn.model_selection import train_test_split, GridSearchCV
-# from sklearn.impute import SimpleImputer
-# from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-# from sklearn.linear_model import LogisticRegression, LinearRegression
-# from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-# from sklearn.multiclass import OneVsOneClassifier, OneVsRestClassifier
-# from sklearn.metrics import classification_report, ConfusionMatrixDisplay, mean_absolute_error, mean_squared_error, r2_score, accuracy_score
-# from sklearn.feature_selection import SelectKBest, f_classif
-# from sklearn.tree import plot_tree
-# from xgboost import XGBRegressor
 import pickle
 import json
 from pydantic import BaseModel
-# from typing import Any
 from fastapi.responses import JSONResponse, PlainTextResponse, FileResponse
 from sqlalchemy import create_engine
 import traceback
@@ -32,64 +17,11 @@ from google.cloud import storage
 from io import BytesIO
 
 
-BUCKET_NAME = os.getenv('BUCKET_NAME')
-storage_client = storage.Client()
-bucket = storage_client.bucket(BUCKET_NAME)
-OUTPUT_DIR = os.getenv('OUTPUT_DIR')
-BEST_MODEL_DIR =  f'{OUTPUT_DIR}/best_models'
-blobs = storage_client.list_blobs(bucket, prefix=BEST_MODEL_DIR)
-list_blobs = [blob.name for blob in blobs]
 
 
 
 
-
-
-try:
-    with open('./config/afklm_ml_training_settings.json') as json_file:
-        ml_training_settings = json.load(json_file)
-    params_from_json = True
-    print("afklm_ml_training_settings_class.json loaded")
-
-except:
-    ml_training_settings = {
-    "DATA_DIR" : 'data',
-    "OUTPUT_DIR": "outputs"
-    }
-    print("afklm_ml_training_settings.json defaults loaded")
-
-try :
-    best_model_classification_delay_file =[model for model in list_blobs if ('.pkl' in model) & ("classification_delay" in model) ][0]
-
-    with open(f'{OUTPUT_DIR}/best_models/{best_model_classification_delay_file}', 'rb') as f:
-        best_model_classification_delay = pickle.load(f)
-except:
-    print("No classification delay status model found")
-
-
-try :
-    best_model_classification_status_file =[model for model in list(os.listdir(BEST_MODEL_DIR)) if ('.pkl' in model) & ("classification_status" in model) ][0]
-    with open(f'{OUTPUT_DIR}/best_models/{best_model_classification_status_file}', 'rb') as f:
-        best_model_classification_status = pickle.load(f)
-except:
-    print("No classification delay model found")
-
-
-try :
-    best_model_regression_file =[model for model in list(os.listdir(BEST_MODEL_DIR)) if ('.pkl' in model) & ("regression" in model) ][0]
-
-    with open(f'{OUTPUT_DIR}/best_models/{best_model_regression_file}', 'rb') as f:
-        best_model_regression = pickle.load(f)
-except:
-    print("No regression delay model found")
-
-
-try:
-    best_models_metrics = pd.read_csv(f'{OUTPUT_DIR}/best_models/best_models.csv')
-    best_models_metrics_json = ([row.dropna().to_dict() for index,row in best_models_metrics.iterrows()])
-except:
-    print("No model metrics found")
-
+# define functions
 
 def get_dayPeriod(x):
     if (x >= 6) & (x < 12):
@@ -100,6 +32,126 @@ def get_dayPeriod(x):
         return "evening"
     else:
         return 'night'
+
+def bucket_init(bucket_name:str):
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    return bucket
+
+
+def open_json_file_in_gcp (file_directory:str,bucket)->dict:
+    blob = bucket.blob(file_directory)
+    json_file = blob.download_as_bytes()
+    data = json.loads(json_file)
+    return data
+def open_json_file(file_directory:str, in_cloud:bool=False,bucket=None)->dict:
+    if in_cloud:
+        return open_json_file_in_gcp(file_directory,bucket)
+
+    else:
+        with open(file_directory) as file:
+            data = json.load(file)
+        return data
+def load_pkl_file_from_gcp (file_directory:str,bucket):
+    blob = bucket.blob(file_directory)
+    pkl_file = blob.download_as_bytes()
+    return pickle.loads(pkl_file)
+
+def load_pkl_file(file_directory:str, in_cloud:bool=False,bucket=None):
+    if in_cloud:
+        return load_pkl_file_from_gcp(file_directory,bucket)
+
+    else:
+        with open(f'{OUTPUT_DIR}/file_directory/{file_directory}', 'rb') as f:
+            pkl_file = pickle.load(f)
+        return pkl_file
+def list_files_in_directory(directory:str, in_cloud:bool=False,bucket=None)->list:
+    if in_cloud:
+        return [blob.name for blob in bucket.list_blobs(prefix=directory)]
+    else:
+        return list(os.listdir(directory))
+
+def read_csv_files(directory:str, in_cloud:bool=False,bucket=None)->pd.DataFrame:
+    if in_cloud:
+        blob_file = bucket.blob(directory)
+        csv_file = blob_file.download_as_bytes()
+        return pd.read_csv(BytesIO(csv_file))
+    else:
+        pd.read_csv(directory)
+
+
+
+#init gcloud credientials and enviroment variables
+bucket_name = os.getenv('BUCKET_NAME')
+OUTPUT_DIR = os.getenv('OUTPUT_DIR')
+ML_ROOT = os.getenv('ML_ROOT')
+BEST_MODEL_DIR =  f'{OUTPUT_DIR}/best_models'
+
+try :
+    bucket=bucket_init(bucket_name)
+    in_cloud =True
+    afklm_ml_training_settings_path = f'{ML_ROOT}/config/afklm_ml_training_settings.json'
+    api_test_payload_path = f'{ML_ROOT}/config/api_test_payload.json'
+    afklm_ml_training_settings_default_path = f'{ML_ROOT}/config/afklm_ml_training_settings_default.json'
+except:
+    in_cloud = False
+    bucket = None
+    afklm_ml_training_settings_path = './config/afklm_ml_training_settings.json'
+    api_test_payload_path = './config/api_test_payload.json'
+    afklm_ml_training_settings_default_path = './config/afklm_ml_training_settings_default.json'
+    
+
+    print("No bucket found")
+# variables
+if in_cloud:
+    afklm_ml_training_settings_path = f'{ML_ROOT}/config/afklm_ml_training_settings.json'
+
+else:
+    afklm_ml_training_settings_path = './config/afklm_ml_training_settings.json'
+
+try:
+    ml_training_settings = open_json_file(afklm_ml_training_settings_path,in_cloud,bucket)
+    params_from_json = True
+    print("afklm_ml_training_settings_class.json loaded")
+except:
+    ml_training_settings = {
+    "DATA_DIR" : 'data',
+    "OUTPUT_DIR": "outputs"
+    }
+    print("afklm_ml_training_settings.json defaults loaded")
+
+# retrieving models
+list_files_in_directory = list_files_in_directory(BEST_MODEL_DIR,in_cloud,bucket)
+try :
+    best_model_classification_delay_file =[model for model in list_files_in_directory if ('.pkl' in model) & ("classification_delay" in model) ][0]
+    best_model_classification_delay = load_pkl_file(best_model_classification_delay_file,in_cloud,bucket)
+except:
+    print("No classification delay status model found")
+
+
+try :
+    best_model_classification_status_file =[model for model in list_files_in_directory if ('.pkl' in model) & ("classification_status" in model) ][0]
+    best_model_classification_status = load_pkl_file(best_model_classification_status_file,in_cloud,bucket)
+except:
+    print("No classification delay model found")
+
+
+try :
+    best_model_regression_file =[model for model in list_files_in_directory if ('.pkl' in model) & ("regression" in model) ][0]
+    best_model_regression = load_pkl_file(f'{OUTPUT_DIR}/best_models/{best_model_regression_file}',in_cloud,bucket)
+
+except:
+    print("No regression delay model found")
+
+
+try:
+    best_models_metrics = read_csv_files(f'{OUTPUT_DIR}/best_models/best_models.csv',in_cloud,bucket)
+    best_models_metrics_json = ([row.dropna().to_dict() for index,row in best_models_metrics.iterrows()])
+except:
+    print("No model metrics found")
+
+
+
 
 api = FastAPI(
         title = "Air France KLM - ML API",
@@ -180,23 +232,7 @@ class Payload_flight(BaseModel):
 
 
 
-with open('./config/api_test_payload.json') as json_file:
-    json_example_payload = json.load(json_file)
-'''
-try:
-    with open('./config/api_test_payload.json') as json_file:
-        json_example = json.load(json_file)
-
-    
-except:
-    json_example =  {"_id":"690c974f228ea0580c98a8be","id":"20250517+G3+7612","airline_code":"G3","airline_name":"GOL LINHAS AEREAS S.A.","flightLegs_aircraft_ownerAirlineCode":"G3","flightLegs_aircraft_typeCode":"7M8","flightLegs_arrivalInformation_airport_city_country_areaCode":"I","flightLegs_arrivalInformation_airport_city_country_code":"AR","flightLegs_arrivalInformation_airport_city_country_name":"ARGENTINA","flightLegs_arrivalInformation_airport_code":"COR","flightLegs_arrivalInformation_airport_location_latitude":-31.3131,"flightLegs_arrivalInformation_airport_location_longitude":-64.1994,"flightLegs_arrivalInformation_times_scheduled":"2025-05-17T02:20:00.000-03:00","flightLegs_departureInformation_airport_city_country_areaCode":"I","flightLegs_departureInformation_airport_city_country_code":"BR","flightLegs_departureInformation_airport_city_country_name":"BRAZIL","flightLegs_departureInformation_airport_code":"GIG","flightLegs_departureInformation_airport_location_latitude":-22.8214,"flightLegs_departureInformation_airport_location_longitude":-43.2494,"flightLegs_departureInformation_airport_places_departurePositionTerminal_gateNumber":"","flightLegs_departureInformation_times_scheduled":"2025-05-16T22:30:00.000-03:00",
-                "flightLegs_scheduledFlightDuration":"PT3H50M",
-                 "flightLegs_serviceType":"J","flightLegs_serviceTypeName":"Normal Service","flightNumber":7612,"flightLegs_departureInformation_airport_places_departurePositionTerminal_boardingTerminal":"",
-                 "flightLegs_arrivalInformation_airport_places_arrivalPositionTerminal":""}
-
-'''
-
-
+json_example_payload = open_json_file(api_test_payload_path,in_cloud,bucket)
 Payload_flight.model_config["json_schema_extra"]["examples"] = json_example_payload
 
 
@@ -245,8 +281,7 @@ class PayloadTrainingParameters(BaseModel):
 
 
 try:
-    with open('./config/afklm_ml_training_settings_default.json') as json_file:
-        json_example_training_params = json.load(json_file)
+    json_example_training_params = open_json_file(afklm_ml_training_settings_default_path,in_cloud,bucket)
 except:
     json_example_training_params = {"training parameters not found":""}
 
@@ -272,8 +307,11 @@ def get_model_parameters():
 @api.get('/retrain_models', name="Retrain the machine learning models with the current dataset", tags=['training'],response_class=PlainTextResponse)
 def retrain_models():
     """Retrain the machine learning models with the current dataset"""
-    subprocess.run(["python", "afklm_ml_training.py"])
-    return "Model training over"
+    try:
+        subprocess.run(["python", "afklm_ml_training.py"])
+        return "Model training over"
+    except Exception as e :
+        return "failed to retrain model"
 
 @api.get('/retrieve_latest_data_for_training', name="Retrieve the latest training dataset", tags=['training'],response_class=PlainTextResponse)
 def retrieve_latest_training_dataset():
@@ -445,7 +483,7 @@ def post_users(parameters: Payload_flight):
     )
 
 
-    entry_cleaned["flightlegs_scheduledFlightDuration"] = entry_cleaned.apply(
+    entry_cleaned["flightlegs_scheduledflightduration"] = entry_cleaned.apply(
         lambda row: (datetime.datetime.fromisoformat(row.flightlegs_arrinfo_times_scheduled)
                     - datetime.datetime.fromisoformat(row.flightlegs_depinfo_times_scheduled)).seconds / 60,
         axis=1
@@ -529,4 +567,8 @@ def post_users(parameters: Payload_flight):
                                  "predicted_delay_min_classification": prediction_delay_classification,
                                  "predicted_delay_min_regression": prediction_delay_regresssion
     })
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(api, host="0.0.0.0", port=8000)
 
