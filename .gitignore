@@ -28,10 +28,7 @@ venv/
 MongoDb/\[internal]
 MongoDb/=
 MongoDb/writing
-MongoDb/requirements.txt
 MongoDb/transferring
 MongoDb/naming
 MongoDb/exporting
 MongoDb/CACHED
-requirements.txt
-requirements.txt
