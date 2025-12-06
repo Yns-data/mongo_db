@@ -13,10 +13,15 @@ load_dotenv()
 
 ml_api_host = os.getenv('ML_API_HOST')
 ml_api_port = os.getenv('ML_API_PORT')
+if os.getenv('ML_API_URI'):
+    url_api = os.getenv('ML_API_URI')
+else:
+    url_api = f"http://{ml_api_host}:{ml_api_port}"
+
 
 
 try:
-    response = requests.get(f"http://{ml_api_host}:{ml_api_port}/model_parameters_and_metrics")
+    response = requests.get(f"{url_api}/model_parameters_and_metrics")
     model_metrics_dict = response.json()
     model_metrics = pd.DataFrame(model_metrics_dict).drop(['mode','best_pipeline',"processing_time","target_variable","numeric_features","categorical_features","hyperparameters","macro_avg_precision","macro_avg_recall","macro_avg_f1","mae","mse","rmse"],axis=1)
 
@@ -184,7 +189,7 @@ def update_graphs(row_ids, selected_row_ids, active_cell):
 
 
     try:
-        response = requests.post(f"http://{ml_api_host}:{ml_api_port}/get_delay_predictions",
+        response = requests.post(f"{url_api}/get_delay_predictions",
             json=json_tosend  
         )
 
