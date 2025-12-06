@@ -35,7 +35,6 @@ itsdangerous==2.2.0
 Jinja2==3.1.6
 joblib==1.5.2
 MarkupSafe==3.0.3
-mongo_db_interaction @ git+https://github.com/Yns-data/mongo_db.git@05154d1152d443ef1cc0bd320cbcce78adf7d8c1#subdirectory=MongoDb/mongo_db_interaction
 multivolumefile==0.2.3
 narwhals==2.13.0
 nest-asyncio==1.6.0
